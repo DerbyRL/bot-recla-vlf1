@@ -146,7 +146,7 @@ client.on("messageCreate", message => {
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
                 for(let i=0 ; i < conf.leagues.length ; i++){
                     console.log("Ligue " + conf.leagues[i]);
-                    message.channel.send("Ligue <@&" + conf.leagues[i] + ">")
+                    message.channel.send("Ligue " + conf.leagues[i] + " <@&" + conf.leagues[i] + ">")
                 }
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
@@ -155,7 +155,7 @@ client.on("messageCreate", message => {
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
                 for(let i=0 ; i < conf.teams.length ; i++){
                     console.log("Ecurie " + conf.teams[i]);
-                    message.channel.send("Ecurie <@&" + conf.teams[i] + ">")
+                    message.channel.send("Ecurie " + conf.teams[i] + "<@&" + conf.teams[i] + ">")
                 }
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
