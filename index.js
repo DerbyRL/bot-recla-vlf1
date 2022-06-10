@@ -65,7 +65,6 @@ client.on("messageCreate", message => {
                 }).then(channel => {
                     users.push(message.member.id);
                     var userLeague = getUserLeague(message);
-                    console.log(userLeague);
                     var r = {
                         author: message.member.id,
                         league: userLeague.id,
@@ -316,7 +315,6 @@ client.on("messageCreate", message => {
 
 client.on('interactionCreate', async interaction => {
 	if(interaction.isSelectMenu()){
-        console.log(interaction);
         if(interaction.customId == 'league'){
             var channelId = interaction.channel.id;
             var value = interaction.values[0];
@@ -469,9 +467,7 @@ function getRoles(message, msgContent){
     for(var i = 0; i < roles.length ; i++){
         if(roles[i].includes('&')){
             var u = roles[i].split('&')[1];
-            console.log(u);
             let role = message.guild.roles.cache.find(x => x.id == u);
-            console.log(role);
             if (typeof role !== undefined) {
                 roleArray.push(role);
             }
@@ -485,9 +481,7 @@ function getRole(message, msgContent){
     for(var i = 0; i < roles.length ; i++){
         if(roles[i].includes('&')){
             var u = roles[i].split('&')[1];
-            console.log(u);
             let role = message.guild.roles.cache.find(x => x.id == u);
-            console.log(role);
             if (typeof role !== undefined) {
                 return role;
             }
@@ -501,9 +495,7 @@ function getChannel(message, msgContent){
     for(var i = 0; i < channels.length ; i++){
         if(channels[i].includes('#')){
             var u = channels[i].split('#')[1];
-            console.log(u);
             let channel = message.guild.channels.cache.find(x => x.id == u);
-            console.log(channel);
             if (typeof channel !== undefined) {
                 return channel;
             }
