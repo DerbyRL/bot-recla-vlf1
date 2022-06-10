@@ -145,6 +145,7 @@ client.on("messageCreate", message => {
         if( message.content.startsWith("!leagues")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
                 for(let i=0 ; i < conf.leagues.length ; i++){
+                    console.log("Ligue " + conf.leagues[i]);
                     message.channel.send("Ligue <@&" + conf.leagues[i] + ">")
                 }
             }else{
@@ -153,6 +154,7 @@ client.on("messageCreate", message => {
         }else if( message.content.startsWith("!teams")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
                 for(let i=0 ; i < conf.teams.length ; i++){
+                    console.log("Ecurie " + conf.teams[i]);
                     message.channel.send("Ecurie <@&" + conf.teams[i] + ">")
                 }
             }else{
