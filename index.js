@@ -288,6 +288,20 @@ client.on("messageCreate", message => {
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
+        }else if(message.content.startsWith(CONFIG_PREFIX + "clear-leagues")){
+            if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
+                c.leagues = [];
+                fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+            }else{
+                message.reply("Vous n'avez pas les droits pour effectuer cette action");
+            }
+        }else if(message.content.startsWith(CONFIG_PREFIX + "clear-teams")){
+            if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
+                c.teams = [];
+                fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+            }else{
+                message.reply("Vous n'avez pas les droits pour effectuer cette action");
+            }
         }else if(message.content.startsWith(CONFIG_PREFIX + "help")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
                 
