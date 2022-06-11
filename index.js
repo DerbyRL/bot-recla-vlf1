@@ -327,6 +327,28 @@ client.on("messageCreate", message => {
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
+        }else if(message.content.startsWith(CONFIG_PREFIX + "status")){
+            if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
+                message.channel.send("Listing des ligues:");
+                for(let i=0 ; i < conf.leagues.length ; i++){
+                    console.log("Ligue " + conf.leagues[i]);
+                    message.channel.send("Ligue " + conf.leagues[i] + " <@&" + conf.leagues[i] + ">")
+                }
+
+                message.channel.send("Listing des écuries:");
+                for(let i=0 ; i < conf.teams.length ; i++){
+                    console.log("Ligue " + conf.teams[i]);
+                    message.channel.send("Ligue " + conf.teams[i] + " <@&" + conf.teams[i] + ">")
+                }
+
+                message.channel.send("Salon des réclamations: <#" + conf.recla_channel + ">");
+                message.channel.send("Catégorie des réclamations: " + conf.recla_category);
+                message.channel.send("Role admin: <@" + conf.admin_role + ">");
+                message.channel.send("Role pilote: <@" + conf.driver_role + ">");
+                
+            }else{
+                message.reply("Vous n'avez pas les droits pour effectuer cette action");
+            }
         }
     }
 })
