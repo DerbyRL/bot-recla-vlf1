@@ -290,15 +290,17 @@ client.on("messageCreate", message => {
             }
         }else if(message.content.startsWith(CONFIG_PREFIX + "clear-leagues")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-                c.leagues = [];
+                conf.leagues = [];
                 fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                message.reply("Les ligues ont été réinitialisées");
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
         }else if(message.content.startsWith(CONFIG_PREFIX + "clear-teams")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-                c.teams = [];
+                conf.teams = [];
                 fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                message.reply("Les écuries ont été réinitialisées");
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
