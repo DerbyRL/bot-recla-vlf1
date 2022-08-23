@@ -3,8 +3,11 @@ const path = require('path');
 const discord = require("discord.js");
 const { MessageActionRow, MessageSelectMenu, MessageButton, MessageCollector } = require('discord.js');
 require('dotenv').config();
-const { SlashCommandBuilder } = require("@discordjs/builders");
-const conf = require('./config.json');
+// const { SlashCommandBuilder } = require("@discordjs/builders");
+const config = require('./config.json');
+const mongoose = require('mongoose');
+const ConfigSchema = require('./ConfigSchema')
+const ReclaSchema = require('./ReclaSchema')
 
 const client = new discord.Client({ 
     intents: [
@@ -14,37 +17,92 @@ const client = new discord.Client({
     ]
 });
 
-var c = {
-    leagues: conf.leagues,
-    teams: conf.teams,
-    recla_channel: conf.recla_channel,
-    recla_category: conf.recla_category,
-    admin_role: conf.admin_role,
-    driver_role: conf.driver_role,
-    reclas: conf.reclas
-}
+var configuration;
+var reclas;
 
 const PREFIX = "p!recla ";
 const CONFIG_PREFIX = "p!config ";
 
-var leagues = [];
 var league_options = [];
+var leagueRoles = [];
+
+var driver_role = "";
+var admin_role = "";
+var leagues = [];
+var teams = [];
+var recla_category = "";
+var recla_channel = "";
 
 client.on("ready", async () => {
+    await mongoose.connect(process.env.DATABASE_URI,
+        {
+            keepAlive: true
+        });
+
+    setTimeout(async () => {
+
+        configuration = await ConfigSchema.findOne({id: process.env.SERVER_ID});
+        if(configuration){
+            leagues = configuration.leagues;
+            driver_role = configuration.driver_role;
+            admin_role = configuration.admin_role;
+            teams = configuration.teams;
+            recla_category = configuration.recla_category;
+            recla_channel = configuration.recla_channel;
+        }else{
+            await ConfigSchema.findOneAndUpdate(
+                {
+                    id: process.env.SERVER_ID
+                },
+                {
+                    leagues: leagues,
+                    driver_role: driver_role,
+                    admin_role: admin_role,
+                    teams: teams,
+                    recla_category: recla_category,
+                    recla_channel: recla_channel,
+                },
+                {
+                    upsert: true
+                }
+            )
+        }
+    });
+
     console.log("Bot opérationnel");
 });
 
+async function save(){
+    await ConfigSchema.findOneAndUpdate(
+        {
+            id: process.env.SERVER_ID
+        },
+        {
+            leagues: leagues,
+            driver_role: driver_role,
+            admin_role: admin_role,
+            teams: teams,
+            recla_category: recla_category,
+            recla_channel: recla_channel,
+        },
+        {
+            upsert: true
+        }
+    )
+}
+
 client.on("messageCreate", message => {
-    if(message.channel.id == conf.recla_channel){
+    console.log('Nouveau message...');
+    if(message.channel.id == recla_channel){
         if(message.content.startsWith(PREFIX)){
-            if(message.member.roles.cache.has(conf.driver_role)){
+            if(message.member.roles.cache.has(driver_role)){
                 message.delete();
                 var end = message.content.split(PREFIX);
                 var users = getUsers(end[1]);
                 
                 message.guild.channels.create("récla-de-" + message.author.username, {
                     type: 'text',
-                    parent: c.recla_category,
+                    parent: recla_category,
                     permissionOverwrites: [
                         {
                             id: message.guild.roles.everyone,
@@ -52,7 +110,7 @@ client.on("messageCreate", message => {
                             deny: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'READ_MESSAGE_HISTORY']
                         },
                         {
-                            id: c.admin_role,
+                            id: admin_role,
                             allow: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'READ_MESSAGE_HISTORY'],
                             deny: []
                         },
@@ -63,17 +121,18 @@ client.on("messageCreate", message => {
                         }
                     ]
                 }).then(channel => {
+                    users.forEach(user => {
+                        channel.permissionOverwrites.edit(user, {
+                            VIEW_CHANNEL: true,
+                            SEND_MESSAGES: true,
+                            READ_MESSAGE_HISTORY: true
+                           })
+                    });
                     users.push(message.member.id);
                     var userLeague = getUserLeague(message);
-                    var r = {
-                        author: message.member.id,
-                        league: userLeague.id,
-                        instant: null,
-                        drivers: users
-                    }
-                    var channelId = channel.id;
-                    c.reclas[channelId] = r;
-                    fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                    console.log("Salon: " + channel.id);
+                    createRecla(channel.id, message.member.id, userLeague.id, users);
+                    
                     getLeagues(message.guild);
                     buildLeagueOptions(message);
                     const rowLeague = new MessageActionRow()
@@ -122,21 +181,11 @@ client.on("messageCreate", message => {
                             new MessageButton()
                             .setCustomId('submit')
                             .setLabel('Créer la réclamation')
-                            .setStyle('DANGER'),
+                            .setStyle('DANGER')
                     );
         
                     channel.send({ content: 'Voici le formulaire à renseigner:', components: [rowLeague, rowInstant, rowSubmit] });
                 })
-                // for(let i = 0 ; i< roles.length ; i++){
-                //     var role = roles[i];
-                //     if(!conf.leagues.includes(role.id)){
-                //         conf.leagues.push(role.id);
-                //         fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
-                //         message.reply("La ligue " + role.name + " a été ajoutée");
-                //     }else{
-                //         message.reply("La ligue " + role.name + " existe déjà dans la configuration du bot");
-                //     }
-                // }
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
@@ -144,18 +193,26 @@ client.on("messageCreate", message => {
     }else if(message.channel.id == process.env.CONFIG_CHANNEL){
         if( message.content.startsWith("!leagues")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-                for(let i=0 ; i < conf.leagues.length ; i++){
-                    console.log("Ligue " + conf.leagues[i]);
-                    message.channel.send("Ligue " + conf.leagues[i] + " <@&" + conf.leagues[i] + ">")
+                if(leagues && leagues.length > 0){
+                    for(let i=0 ; i < leagues.length ; i++){
+                        console.log("Ligue " + leagues[i]);
+                        message.channel.send("Ligue " + leagues[i] + " <@&" + leagues[i] + ">")
+                    }
+                }else{
+                    message.channel.send("Aucune ligue définie")
                 }
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
         }else if( message.content.startsWith("!teams")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-                for(let i=0 ; i < conf.teams.length ; i++){
-                    console.log("Ecurie " + conf.teams[i]);
-                    message.channel.send("Ecurie " + conf.teams[i] + "<@&" + conf.teams[i] + ">")
+                if(teams && teams.length > 0){
+                    for(let i=0 ; i < teams.length ; i++){
+                        console.log("Ecurie " + teams[i]);
+                        message.channel.send("Ecurie " + teams[i] + "<@&" + teams[i] + ">")
+                    }
+                }else{
+                    message.channel.send("Aucune écurie définie")
                 }
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
@@ -166,65 +223,68 @@ client.on("messageCreate", message => {
                 var roles = getRoles(message, end[1]);
                 for(let i = 0 ; i< roles.length ; i++){
                     var role = roles[i];
-                    if(!conf.leagues.includes(role.id)){
-                        conf.leagues.push(role.id);
-                        fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                    if(!leagues){
+                        leagues = [];
+                    }
+                    if(!leagues.includes(role.id)){
+                        leagues.push(role.id);
                         message.reply("La ligue " + role.name + " a été ajoutée");
                     }else{
                         message.reply("La ligue " + role.name + " existe déjà dans la configuration du bot");
                     }
                 }
+                save();
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
         }else if(message.content.startsWith(CONFIG_PREFIX + "remove-league")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-            var end = message.content.split(CONFIG_PREFIX + "remove-league");
-            var roles = getRoles(message, end[1]);
-            for(let i = 0 ; i< roles.length ; i++){
-                var role = roles[i];
-                if(conf.leagues.includes(role.id)){
-                    conf.leagues.pop(role.id);
-                    fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
-                    message.reply("L'écurie " + role.name + " a bien été supprimée");
-                }else{
-                    message.reply("L'écurie " + role.name + " n'existe pas dans la configuration du bot, elle ne peut donc pas être supprimée!");
+                var end = message.content.split(CONFIG_PREFIX + "remove-league");
+                var roles = getRoles(message, end[1]);
+                for(let i = 0 ; i< roles.length ; i++){
+                    var role = roles[i];
+                    if(leagues.includes(role.id)){
+                        leagues.pop(role.id);
+                        message.reply("L'écurie " + role.name + " a bien été supprimée");
+                    }else{
+                        message.reply("L'écurie " + role.name + " n'existe pas dans la configuration du bot, elle ne peut donc pas être supprimée!");
+                    }
                 }
-            }
+                save();
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
         }else if(message.content.startsWith(CONFIG_PREFIX + "add-team")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-            var end = message.content.split(CONFIG_PREFIX + "add-team");
-            var roles = getRoles(message, end[1]);
-            for(let i = 0 ; i< roles.length ; i++){
-                var role = roles[i];
-                if(!conf.teams.includes(role.id)){
-                    conf.teams.push(role.id);
-                    fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
-                    message.reply("L'écurie " + role.name + " a été ajoutée");
-                }else{
-                    message.reply("L'écurie " + role.name + " existe déjà dans la configuration du bot");
+                var end = message.content.split(CONFIG_PREFIX + "add-team");
+                var roles = getRoles(message, end[1]);
+                for(let i = 0 ; i< roles.length ; i++){
+                    var role = roles[i];
+                    if(!teams.includes(role.id)){
+                        teams.push(role.id);
+                        message.reply("L'écurie " + role.name + " a été ajoutée");
+                    }else{
+                        message.reply("L'écurie " + role.name + " existe déjà dans la configuration du bot");
+                    }
                 }
-            }
+                save();
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
         }else if(message.content.startsWith(CONFIG_PREFIX + "remove-team")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-            var end = message.content.split(CONFIG_PREFIX + "remove-team");
-            var roles = getRoles(message, end[1]);
-            for(let i = 0 ; i< roles.length ; i++){
-                var role = roles[i];
-                if(conf.teams.includes(role.id)){
-                    conf.teams.pop(role.id);
-                    fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
-                    message.reply("L'écurie " + role.name + " a bien été supprimée");
-                }else{
-                    message.reply("L'écurie " + role.name + " n'existe pas dans la configuration du bot, elle ne peut donc pas être supprimée!");
+                var end = message.content.split(CONFIG_PREFIX + "remove-team");
+                var roles = getRoles(message, end[1]);
+                for(let i = 0 ; i< roles.length ; i++){
+                    var role = roles[i];
+                    if(teams.includes(role.id)){
+                        teams.pop(role.id);
+                        message.reply("L'écurie " + role.name + " a bien été supprimée");
+                    }else{
+                        message.reply("L'écurie " + role.name + " n'existe pas dans la configuration du bot, elle ne peut donc pas être supprimée!");
+                    }
                 }
-            }
+                save();
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
@@ -233,8 +293,8 @@ client.on("messageCreate", message => {
                 var end = message.content.split(CONFIG_PREFIX + "recla-channel");
                 let channel = getChannel(message, end[1]);
                 if(channel != undefined){
-                    c.recla_channel = channel.id;
-                    fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                    recla_channel = channel.id;
+                    save();
 
                     message.reply("Salon " + channel.name + " défini comme salon des réclamations");
                 }
@@ -245,8 +305,8 @@ client.on("messageCreate", message => {
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
                 var end = message.content.split(CONFIG_PREFIX + "recla-category");
                 if(end[1] != undefined){
-                    c.recla_category = end[1].trim();
-                    fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                    recla_category = end[1].trim();
+                    save();
                     message.reply("Catégorie des réclamations définie");
                 }
             }else{
@@ -257,8 +317,8 @@ client.on("messageCreate", message => {
                 var end = message.content.split(CONFIG_PREFIX + "admin-role");
                 let role = getRole(message, end[1]);
                 if(role != undefined){
-                    c.admin_role = role.id;
-                    fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                    admin_role = role.id;
+                    save();
 
                     message.reply("Role " + role.name + " défini comme rôle nécessaire pour voir et gérer les réclamations");
                 }
@@ -270,36 +330,36 @@ client.on("messageCreate", message => {
                 var end = message.content.split(CONFIG_PREFIX + "driver-role");
                 let role = getRole(message, end[1]);
                 if(role != undefined){
-                    c.driver_role = role.id;
-                    fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                    driver_role = role.id;
+                    save();
 
                     message.reply("Role " + role.name + " défini comme rôle nécessaire pour voir et gérer les réclamations");
                 }
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
-        }else if(message.content.startsWith(CONFIG_PREFIX + "clear-reclas")){
-            if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-                c.reclas = {};
-                fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+        // }else if(message.content.startsWith(CONFIG_PREFIX + "clear-reclas")){
+        //     if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
+        //         c.reclas = {};
+        //         save();
 
-                const category = message.guild.channels.cache.get(c.recla_category); // You can use `find` instead of `get` to fetch the category using a name: `find(cat => cat.name === 'test')
-                category.children.forEach(channel => channel.delete())
-            }else{
-                message.reply("Vous n'avez pas les droits pour effectuer cette action");
-            }
+        //         const category = message.guild.channels.cache.get(c.recla_category); // You can use `find` instead of `get` to fetch the category using a name: `find(cat => cat.name === 'test')
+        //         category.children.forEach(channel => channel.delete())
+        //     }else{
+        //         message.reply("Vous n'avez pas les droits pour effectuer cette action");
+        //     }
         }else if(message.content.startsWith(CONFIG_PREFIX + "clear-leagues")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-                conf.leagues = [];
-                fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                leagues = [];
+                save();
                 message.reply("Les ligues ont été réinitialisées");
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
         }else if(message.content.startsWith(CONFIG_PREFIX + "clear-teams")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-                conf.teams = [];
-                fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+                teams = [];
+                save();
                 message.reply("Les écuries ont été réinitialisées");
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
@@ -330,21 +390,21 @@ client.on("messageCreate", message => {
         }else if(message.content.startsWith(CONFIG_PREFIX + "status")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
                 message.channel.send("Listing des ligues:");
-                for(let i=0 ; i < conf.leagues.length ; i++){
-                    console.log("Ligue " + conf.leagues[i]);
-                    message.channel.send("Ligue " + conf.leagues[i] + " <@&" + conf.leagues[i] + ">")
+                for(let i=0 ; i < leagues.length ; i++){
+                    console.log("Ligue " + leagues[i]);
+                    message.channel.send("Ligue " + leagues[i] + " <@&" + leagues[i] + ">")
                 }
 
                 message.channel.send("Listing des écuries:");
-                for(let i=0 ; i < conf.teams.length ; i++){
-                    console.log("Ligue " + conf.teams[i]);
-                    message.channel.send("Ligue " + conf.teams[i] + " <@&" + conf.teams[i] + ">")
+                for(let i=0 ; i < teams.length ; i++){
+                    console.log("Ligue " + teams[i]);
+                    message.channel.send("Ligue " + teams[i] + " <@&" + teams[i] + ">")
                 }
 
-                message.channel.send("Salon des réclamations: <#" + conf.recla_channel + ">");
-                message.channel.send("Catégorie des réclamations: " + conf.recla_category);
-                message.channel.send("Role admin: <@" + conf.admin_role + ">");
-                message.channel.send("Role pilote: <@" + conf.driver_role + ">");
+                message.channel.send("Salon des réclamations: <#" + recla_channel + ">");
+                message.channel.send("Catégorie des réclamations: " + recla_category);
+                message.channel.send("Role admin: <@" + admin_role + ">");
+                message.channel.send("Role pilote: <@" + driver_role + ">");
                 
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
@@ -358,23 +418,24 @@ client.on('interactionCreate', async interaction => {
         if(interaction.customId == 'league'){
             var channelId = interaction.channel.id;
             var value = interaction.values[0];
-            c.reclas[channelId].league = value;
-            fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+            console.log("- - - - -: " + channelId);
+            updateLeagueRecla(channelId, value);
 
             interaction.deferUpdate();
             return;
         }else if(interaction.customId == 'instant'){
             var channelId = interaction.channel.id;
             var value = interaction.values[0];
-            c.reclas[channelId].instant = value;
-            fs.writeFileSync(path.resolve(__dirname, 'config.json'), JSON.stringify(c));
+            console.log("- - - - -: " + channelId);
+            updateInstantRecla(channelId, value);
 
             interaction.deferUpdate();
             return;
         }
     }else if(interaction.isButton()){
         var channel = interaction.channel;
-        var author = c.reclas[channel.id].author;
+        var recla = await ReclaSchema.findOne({messageId: channel.id});
+        var author = recla.author;
         if(author == interaction.member.id){
             author = getUser(author);
             var authorTeam = getUserTeam(interaction, author); 
@@ -382,8 +443,9 @@ client.on('interactionCreate', async interaction => {
             if(authorTeam != null){
                 teamName = authorTeam.name;
             }
-            var instant = c.reclas[channel.id].instant;
-            var league = c.reclas[channel.id].league;
+
+            var instant = recla.instant;
+            var league = recla.league;
 
             if(instant != null && league != null){
                 league = getLeague(interaction.guild, league);
@@ -424,7 +486,7 @@ client.on('interactionCreate', async interaction => {
                     );
                 embeds.push(authorEmbed);
 
-                var drivers = c.reclas[channel.id].drivers;
+                var drivers = recla.drivers;
                 for(var i = 0 ; i < drivers.length ; i++){
                     var driver = drivers[i];
                     if(driver != author.id){
@@ -545,21 +607,21 @@ function getChannel(message, msgContent){
 }
 
 function getLeagues(guild){
-    leagues = [];
+    leagueRoles = [];
 
-    for(let i=0 ; i < conf.leagues.length ; i++){
-        let role = guild.roles.cache.find(x => x.id == conf.leagues[i]);
-        leagues.push(role);
+    for(let i=0 ; i < leagues.length ; i++){
+        let role = guild.roles.cache.find(x => x.id == leagues[i]);
+        leagueRoles.push(role);
     }
 
-    return leagues;
+    return leagueRoles;
 }
 
 function getLeague(guild, leagueId){
 
-    for(let i=0 ; i < conf.leagues.length ; i++){
-        if(conf.leagues[i] == leagueId){
-            return guild.roles.cache.find(x => x.id == conf.leagues[i]);
+    for(let i=0 ; i < leagues.length ; i++){
+        if(leagues[i] == leagueId){
+            return guild.roles.cache.find(x => x.id == leagues[i]);
         }
     }
 
@@ -568,20 +630,20 @@ function getLeague(guild, leagueId){
 
 function buildLeagueOptions(message){
     league_options = [];
-    for(var i = 0 ; i < leagues.length ; i++){
+    for(var i = 0 ; i < leagueRoles.length ; i++){
         var r ={
-            label: leagues[i].name,
-            value: leagues[i].id,
-            default: message.member.roles.cache.has(leagues[i].id)
+            label: leagueRoles[i].name,
+            value: leagueRoles[i].id,
+            default: message.member.roles.cache.has(leagueRoles[i].id)
         };
         league_options.push(r);
     }
 }
 
 function getUserLeague(message){
-    for(var i = 0 ; i < conf.leagues.length ; i++){
-        if(message.member.roles.cache.has(conf.leagues[i])){
-            return message.guild.roles.cache.find(x => x.id == conf.leagues[i]);
+    for(var i = 0 ; i < leagues.length ; i++){
+        if(message.member.roles.cache.has(leagues[i])){
+            return message.guild.roles.cache.find(x => x.id == leagues[i]);
         }
     }
     return null;
@@ -594,12 +656,49 @@ function getUser(userId){
 function getUserTeam(interaction, user)
 {
     var u = interaction.guild.members.cache.get(user.id);
-    for(var i = 0 ; i < conf.teams.length ; i++){
-        if(u.roles.cache.has(conf.teams[i])){
-            return u.roles.cache.find(x => x.id == conf.teams[i]);
+    for(var i = 0 ; i < teams.length ; i++){
+        if(u.roles.cache.has(teams[i])){
+            return u.roles.cache.find(x => x.id == teams[i]);
         }
     }
     return null;
 }
 
+async function createRecla(messageId, author, league, drivers){
+    await ReclaSchema.findOneAndUpdate(
+        {
+            messageId: messageId
+        },
+        {
+            author: author,
+            league: league,
+            drivers: drivers,
+        },
+        {
+            upsert: true
+        }
+    )
+}
+
+async function updateLeagueRecla(messageId, league){
+    await ReclaSchema.findOneAndUpdate(
+        {
+            messageId: messageId
+        },
+        {
+            league: league,
+        }
+    )
+}
+
+async function updateInstantRecla(messageId, instant){
+    await ReclaSchema.findOneAndUpdate(
+        {
+            messageId: messageId
+        },
+        {
+            instant: instant,
+        }
+    )
+}
 client.login(process.env.DISCORD_TOKEN);
