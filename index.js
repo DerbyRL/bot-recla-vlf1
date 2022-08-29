@@ -417,18 +417,28 @@ client.on('interactionCreate', async interaction => {
 	if(interaction.isSelectMenu()){
         if(interaction.customId == 'league'){
             var channelId = interaction.channel.id;
-            var value = interaction.values[0];
-            console.log("- - - - -: " + channelId);
-            updateLeagueRecla(channelId, value);
-
+            var recla = await ReclaSchema.findOne({messageId: channel.id});
+            var author = recla.author;
+            if(author == interaction.member.id){
+                var value = interaction.values[0];
+                console.log("- - - - -: " + channelId);
+                updateLeagueRecla(channelId, value);
+            }else{
+                interaction.message.reply("Vous ne pouvez pas réagir à une réclamation dont vous n'êtes pas l'auteur");
+            }
             interaction.deferUpdate();
             return;
         }else if(interaction.customId == 'instant'){
             var channelId = interaction.channel.id;
-            var value = interaction.values[0];
-            console.log("- - - - -: " + channelId);
-            updateInstantRecla(channelId, value);
-
+            var recla = await ReclaSchema.findOne({messageId: channel.id});
+            var author = recla.author;
+            if(author == interaction.member.id){
+                var value = interaction.values[0];
+                console.log("- - - - -: " + channelId);
+                updateInstantRecla(channelId, value);
+            }else{
+                interaction.message.reply("Vous ne pouvez pas réagir à une réclamation dont vous n'êtes pas l'auteur");
+            }
             interaction.deferUpdate();
             return;
         }
