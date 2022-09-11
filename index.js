@@ -417,7 +417,7 @@ client.on('interactionCreate', async interaction => {
 	if(interaction.isSelectMenu()){
         if(interaction.customId == 'league'){
             var channelId = interaction.channel.id;
-            var recla = await ReclaSchema.findOne({messageId: channel.id});
+            var recla = await ReclaSchema.findOne({messageId: channelId});
             var author = recla.author;
             if(author == interaction.member.id){
                 var value = interaction.values[0];
@@ -430,7 +430,7 @@ client.on('interactionCreate', async interaction => {
             return;
         }else if(interaction.customId == 'instant'){
             var channelId = interaction.channel.id;
-            var recla = await ReclaSchema.findOne({messageId: channel.id});
+            var recla = await ReclaSchema.findOne({messageId:channelId});
             var author = recla.author;
             if(author == interaction.member.id){
                 var value = interaction.values[0];
@@ -534,29 +534,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 });
-
-// client.on("messageCreate", message =>  {
-//     if( message.author.bot ) return;
-
-//     if( message.content === prefix + "ping"){
-//         message.reply("pong");
-//     }else if( message.content === prefix + "help" ){
-//         const embed = new discord.MessageEmbed()
-//             .setTitle("Liste des commandes")
-//             .setDescription("Vous y trouverez la liste des commandes du bot")
-//             .setThumbnail("https://www.architectes.ch/media/image/5//fia-federation-internationale-de-l-automobile_logo-1.png")
-//             .setColor("#0099ff")
-//             .setURL("https://support.discord.com/hc/en-us/community/posts/360051268213-discord-bot-token-2FA-feature-should-be-implemented-")
-//             .setTimestamp()
-//             .setAuthor({name: "FIA", iconURL: "https://www.architectes.ch/media/image/5//fia-federation-internationale-de-l-automobile_logo-1.png"})
-//             .addField("__!help__", "Affiche la liste des commandes")
-//             .addField("__!ping__", "Vous renvoie pong");
-
-//         message.channel.send({embeds: [embed]});
-//         // message.channel.send("** Besoin d'aide? **\nC'est par ici!")
-//     }
-//     // message.reply("message reçu!");
-// })
 
 function getUsers(msgContent){
     var userArray = [];
