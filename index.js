@@ -27,7 +27,7 @@ var league_options = [];
 var leagueRoles = [];
 
 var driver_role = "";
-var admin_role = "";
+var admin_roles = [];
 var leagues = [];
 var teams = [];
 var recla_category = "";
@@ -45,7 +45,7 @@ client.on("ready", async () => {
         if(configuration){
             leagues = configuration.leagues;
             driver_role = configuration.driver_role;
-            admin_role = configuration.admin_role;
+            admin_roles = configuration.admin_roles;
             teams = configuration.teams;
             recla_category = configuration.recla_category;
             recla_channel = configuration.recla_channel;
@@ -57,7 +57,7 @@ client.on("ready", async () => {
                 {
                     leagues: leagues,
                     driver_role: driver_role,
-                    admin_role: admin_role,
+                    admin_roles: admin_roles,
                     teams: teams,
                     recla_category: recla_category,
                     recla_channel: recla_channel,
@@ -80,7 +80,7 @@ async function save(){
         {
             leagues: leagues,
             driver_role: driver_role,
-            admin_role: admin_role,
+            admin_roles: admin_roles,
             teams: teams,
             recla_category: recla_category,
             recla_channel: recla_channel,
@@ -92,7 +92,6 @@ async function save(){
 }
 
 client.on("messageCreate", message => {
-    console.log('Nouveau message...');
     if(message.channel.id == recla_channel){
         if(message.content.startsWith(PREFIX)){
             if(message.member.roles.cache.has(driver_role)){
@@ -110,11 +109,6 @@ client.on("messageCreate", message => {
                             deny: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'READ_MESSAGE_HISTORY']
                         },
                         {
-                            id: admin_role,
-                            allow: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'READ_MESSAGE_HISTORY'],
-                            deny: []
-                        },
-                        {
                             id: message.member.id,
                             allow: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'READ_MESSAGE_HISTORY'],
                             deny: []
@@ -123,6 +117,13 @@ client.on("messageCreate", message => {
                 }).then(channel => {
                     users.forEach(user => {
                         channel.permissionOverwrites.edit(user, {
+                            VIEW_CHANNEL: true,
+                            SEND_MESSAGES: true,
+                            READ_MESSAGE_HISTORY: true
+                           })
+                    });
+                    admin_roles.forEach(role => {
+                        channel.permissionOverwrites.edit(role, {
                             VIEW_CHANNEL: true,
                             SEND_MESSAGES: true,
                             READ_MESSAGE_HISTORY: true
@@ -312,16 +313,37 @@ client.on("messageCreate", message => {
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
-        }else if(message.content.startsWith(CONFIG_PREFIX + "admin-role")){
+        }else if(message.content.startsWith(CONFIG_PREFIX + "add-admin-role")){
             if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
-                var end = message.content.split(CONFIG_PREFIX + "admin-role");
-                let role = getRole(message, end[1]);
-                if(role != undefined){
-                    admin_role = role.id;
-                    save();
-
-                    message.reply("Role " + role.name + " défini comme rôle nécessaire pour voir et gérer les réclamations");
+                var end = message.content.split(CONFIG_PREFIX + "add-admin-role");
+                var roles = getRoles(message, end[1]);
+                for(let i = 0 ; i< roles.length ; i++){
+                    var role = roles[i];
+                    if(!admin_roles.includes(role.id)){
+                        admin_roles.push(role.id);
+                        message.reply("Le rôle " + role.name + " a été ajouté en tant que rôle d'accès aux réclamations");
+                    }else{
+                        message.reply("Le rôle " + role.name + " existe déjà dans la configuration du bot");
+                    }
                 }
+                save();
+            }else{
+                message.reply("Vous n'avez pas les droits pour effectuer cette action");
+            }
+        }else if(message.content.startsWith(CONFIG_PREFIX + "remove-admin-role")){
+            if(message.member.roles.cache.has(process.env.CONFIG_ROLE)){
+                var end = message.content.split(CONFIG_PREFIX + "remove-team");
+                var roles = getRoles(message, end[1]);
+                for(let i = 0 ; i< roles.length ; i++){
+                    var role = roles[i];
+                    if(admin_roles.includes(role.id)){
+                        admin_roles.pop(role.id);
+                        message.reply("Le rôle " + role.name + " a bien été supprimée dans le liste des rôles d'accès aux réclamations");
+                    }else{
+                        message.reply("L'écurie " + role.name + " n'existe pas dans la configuration du bot, elle ne peut donc pas être supprimée!");
+                    }
+                }
+                save();
             }else{
                 message.reply("Vous n'avez pas les droits pour effectuer cette action");
             }
@@ -403,7 +425,9 @@ client.on("messageCreate", message => {
 
                 message.channel.send("Salon des réclamations: <#" + recla_channel + ">");
                 message.channel.send("Catégorie des réclamations: " + recla_category);
-                message.channel.send("Role admin: <@" + admin_role + ">");
+                for(let i=0 ; i < admin_roles.length ; i++){
+                    message.channel.send("Role admin " + admin_roles[i] + ": <@&" + admin_roles[i] + ">");
+                }
                 message.channel.send("Role pilote: <@" + driver_role + ">");
                 
             }else{

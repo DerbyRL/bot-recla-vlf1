@@ -31,10 +31,10 @@ const schema = new mongoose.Schema({
         required: false,
         default: ''
     },
-    admin_role: {
-        type: String,
+    admin_roles: {
+        type: Array,
         required: false,
-        default: ''
+        default: []
     }
 })
 
